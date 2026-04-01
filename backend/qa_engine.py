@@ -68,5 +68,4 @@ Context:
     
 
 
-    print("✅ qa_engine loaded")
     
