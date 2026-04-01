@@ -1,6 +1,16 @@
-from utils.gemini import gemini_chat
+from utils.groq_client import call_groq
 
 def summarize(text):
-    prompt = f"Summarize this document in under 150 words:\n\n{text}"
-    response = gemini_chat(prompt)
-    return response.get("feedback", "Summary not available.")
+
+    # ✅ limit text (important for speed + token limit)
+    text = text[:3000]
+
+    prompt = f"""
+Summarize the following document in simple and clear points (max 150 words):
+
+{text}
+"""
+
+    response = call_groq(prompt)
+
+    return response

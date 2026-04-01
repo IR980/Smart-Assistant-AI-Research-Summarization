@@ -1,108 +1,72 @@
-import os
-import requests
+from utils.groq_client import call_groq
+from backend.embedding import search_index
 import json
 import re
-from dotenv import load_dotenv
 
-load_dotenv()
+# -------- ANSWER --------
+def answer_question_with_memory(doc_text, user_question, chat_history, chunks, index):
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+    if index is None or not chunks:
+        return {
+            "answer": "No valid document loaded.",
+            "justification": ""
+        }
 
-def call_gemini(prompt: str):
-    headers = {
-        "Content-Type": "application/json",
-        "X-goog-api-key": GEMINI_API_KEY
-    }
-
-    data = {
-        "contents": [
-            {
-                "parts": [{"text": prompt}]
-            }
-        ]
-    }
-
-    response = requests.post(GEMINI_URL, headers=headers, json=data)
-    response.raise_for_status()
-
-    return response.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-def answer_question_with_memory(doc_text: str, user_question: str, chat_history: list):
-    history_prompt = ""
-    for entry in chat_history:
-        history_prompt += f"Q: {entry['question']}\nA: {entry['answer']}\n"
+    relevant_chunks = search_index(index, user_question, chunks)
+    context = "\n".join(relevant_chunks)
 
     prompt = f"""
-You are an AI assistant that answers questions using only the following document:
+Answer ONLY using this context:
 
---- Document ---
-{doc_text}
-----------------
+{context}
 
-Use prior context if helpful.
+Question: {user_question}
+"""
 
-{history_prompt}
-Now answer:
-Q: {user_question}
-A:"""
-
-    answer = call_gemini(prompt)
+    answer = call_groq(prompt)
 
     return {
-        "answer": answer.strip(),
-        "justification": find_justification(doc_text, answer),
+        "answer": answer,
+        "justification": context,
         "memory": chat_history
     }
 
 
-def generate_questions(doc_text: str):
-    prompt = f"""
-Read the document below and generate exactly 3 logic-based or comprehension-focused questions.
-Respond in valid JSON ONLY like this:
+# -------- QUESTIONS --------
+def generate_questions(doc_text, chunks, index):
 
+    if not chunks:
+        return []
+
+    context = "\n".join(chunks[:3])
+
+    prompt = f"""
+Return ONLY valid JSON.
+
+Generate exactly 3 questions with answers.
+
+Format:
 [
-  {{"question": "What is X?", "answer": "Y"}},
-  {{"question": "How does A work?", "answer": "B"}},
-  {{"question": "Why is C important?", "answer": "Because D..."}}
+  {{"question": "Q1", "answer": "A1"}},
+  {{"question": "Q2", "answer": "A2"}},
+  {{"question": "Q3", "answer": "A3"}}
 ]
 
-Document:
-{doc_text}
+Context:
+{context}
 """
 
-    response = call_gemini(prompt)
+    response = call_groq(prompt)
 
-    # Try parsing valid JSON response
+    print("RAW RESPONSE:", response)
+
     try:
         return json.loads(response)
-    except json.JSONDecodeError:
-        # Attempt to extract using regex (fallback)
+    except:
         matches = re.findall(r'{"question":\s*"(.*?)",\s*"answer":\s*"(.*?)"}', response)
-        if matches:
-            return [{"question": q, "answer": a} for q, a in matches]
+        return [{"question": q, "answer": a} for q, a in matches] if matches else []
+    
 
-    # Final fallback
-    return [{"question": "Unable to parse valid questions", "answer": "N/A"}]
 
-def highlight_snippet(doc_text: str, question: str, answer: str):
-    import difflib
-
-    lines = doc_text.split('\n')
-    best_match = ""
-    best_ratio = 0
-
-    for line in lines:
-        ratio = difflib.SequenceMatcher(None, line.lower(), answer.lower()).ratio()
-        if ratio > best_ratio and len(line.strip()) > 20:
-            best_ratio = ratio
-            best_match = line.strip()
-
-    return best_match if best_ratio > 0.3 else "No exact supporting snippet found."
-
-def find_justification(doc_text: str, answer: str):
-    sentences = doc_text.split(".")
-    for sentence in sentences:
-        if answer[:10].lower() in sentence.lower():
-            return sentence.strip() + "."
-    return "Could not extract justification from the document."
+    print("✅ qa_engine loaded")
+    

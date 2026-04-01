@@ -1,4 +1,21 @@
+
 streamlit
 python-dotenv
 requests
+
+# Document parsing
 PyMuPDF
+
+# Groq API
+groq
+
+# RAG + Embeddings
+sentence-transformers
+faiss-cpu
+numpy
+
+# Torch (required for sentence-transformers)
+torch
+torchvision
+# pip install -r requirements.txt
+# streamlit run app.py
