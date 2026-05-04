@@ -286,5 +286,5 @@ If you like this project, please ⭐ the repo and share it!
 [GitHub](https://github.com/IR980)
 
 
-Built with ❤️ using Gemini + Streamlit By Irshad
+Built with ❤️ using Groq + Streamlit By Irshad
 >>>>>>> cafcb17a39745d44e3ab727bf636f45de220065d
